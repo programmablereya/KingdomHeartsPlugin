@@ -4,6 +4,8 @@ namespace KingdomHeartsPlugin.Configuration
 {
     public static partial class Defaults
     {
+        public const int CurrentVersion = 1;
+        
         #region General
         public const bool Locked = false;
         public const bool Enabled  = true;
@@ -45,12 +47,15 @@ namespace KingdomHeartsPlugin.Configuration
         public const int MaximumMpLength  = 11500;
         public const int MinimumMpLength  = 500;
         public const float MpPerPixelLength  = 24.45f;
+        public const float LowMpPercent = 30.0f;
         public const float GpPerPixelLength  = 1.913f;
         public const int MaximumGpLength  = 900;
         public const int MinimumGpLength  = 1;
+        public const float LowGpPercent = 0.0f;
         public const float CpPerPixelLength  = 1.382f;
         public const int MaximumCpLength  = 650;
         public const int MinimumCpLength  = 1;
+        public const float LowCpPercent = 0.0f;
         public const bool TruncateMp  = false;
         public const bool ShowResourceVal  = true;
         #endregion

@@ -161,15 +161,31 @@ namespace KingdomHeartsPlugin.UIElements.LimitBreak
 
             var drawList = ImGui.GetWindowDrawList();
             var basePosition = new Vector2(KingdomHeartsPlugin.Ui.Configuration.LimitGaugePositionX, KingdomHeartsPlugin.Ui.Configuration.LimitGaugePositionY);
-
+            var scale = KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var origin = ImGui.GetItemRectMin() + basePosition * scale;
+            
             // BG
             ImageDrawing.DrawImage(drawList, _gaugeBackgroundTexture, basePosition);
             // Numbers
             ImageDrawing.DrawImageQuad(drawList, _numbers(LimitBreakLevel), basePosition + new Vector2(167, 1), new Vector2(30, 0), new Vector2(30, 0), Vector2.Zero, Vector2.Zero,
                 ImGui.GetColorU32(new Vector4(1, 0.4f, 0, 1)));
             // Foreground
+            /*
             ImageDrawing.DrawImage(drawList, _gaugeForegroundTexture, basePosition + new Vector2(4, 4),
                 new Vector4(0, 0, LimitBreakLevel == LimitBreakMaxLevel ? 1 : LimitBreakBarWidth[LimitBreakLevel] / (float)MaxLimitBarWidth, 1));
+                */
+            var maxGauge = SpeedGauge.Construct(56f, 12f, 62f, 25f, 28f, 45f);
+            maxGauge.FillFlat(drawList, origin + new Vector2(6f, 45f) * scale, ImGui.GetColorU32(new Vector4(0.53f, 0.30f, 0.08f, 1.0f)));
+            var percentage = LimitBreakLevel == LimitBreakMaxLevel
+                ? 1
+                : (float) LimitBreakBarWidth[LimitBreakLevel] / MaxLimitBarWidth;
+            var currentGauge = maxGauge.GetSubset(percentage);
+            var startColor = ImGui.GetColorU32(new Vector4(1.0f, 0.60f, 0f, 1.0f));
+            var endColor = ImGui.GetColorU32(new Vector4(1.0f, 0.95f, 0f, 1.0f));
+            var endColorFor = ColorAddons.Interpolator(startColor, endColor);
+            currentGauge.FillStartToEnd(
+                drawList, origin + new Vector2(6f, 45f) * scale,
+                startColor, endColorFor(percentage), scale);
             // Text
             ImageDrawing.DrawImage(drawList, _limitTextTexture, basePosition + new Vector2(-60, 28), ImGui.GetColorU32(new Vector4(1, 0.75f, 0, 1)));
             // MAX icon

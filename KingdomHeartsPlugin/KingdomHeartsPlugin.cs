@@ -47,7 +47,7 @@ namespace KingdomHeartsPlugin
             TemplateLocation = Path.GetDirectoryName(pluginInterface.AssemblyLocation.FullName!) ?? "";
 
             var configuration = Pi.GetPluginConfig() as Settings ?? new Settings();
-            configuration.Initialize(Pi);
+            configuration.Initialize(Pi, Pl);
 
             Ui = new PluginUI(configuration);
 
@@ -85,6 +85,7 @@ namespace KingdomHeartsPlugin
             Pi.UiBuilder.OpenMainUi -= ToggleMainVisibility;
             Pi.UiBuilder.OpenConfigUi -= DrawConfigUi;
             Cs.TerritoryChanged -= OnTerritoryChange;
+            
 
             Timer = null;
         }

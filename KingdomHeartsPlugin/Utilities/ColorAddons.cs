@@ -1,4 +1,6 @@
-﻿using System.Numerics;
+﻿using System;
+using System.Numerics;
+using Dalamud.Bindings.ImGui;
 
 namespace KingdomHeartsPlugin.Utilities
 {
@@ -11,6 +13,18 @@ namespace KingdomHeartsPlugin.Utilities
             float b = source.Z + (target.Z - source.Z) * percent;
 
             return new Vector3(r, g, b);
+        }
+
+        public static Func<double, uint> Interpolator(uint start, uint end)
+        {
+            if (start == end)
+            {
+                return _ => start;
+            }
+            var startVector = ImGui.ColorConvertU32ToFloat4(start);
+            var endVector = ImGui.ColorConvertU32ToFloat4(end);
+            return fraction => ImGui.ColorConvertFloat4ToU32(
+                startVector * (1f - (float)fraction) + endVector * (float)fraction);
         }
     }
 }

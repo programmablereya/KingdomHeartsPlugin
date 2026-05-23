@@ -597,6 +597,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Text($"Defines the limit of MaxMP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxMP.\n\nDefault: {Defaults.MinimumMpLength}");
                 ImGui.End();
             }
+            var lowMpPercent = Configuration.LowMpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low MP", ref lowMpPercent, 0, 100))
+            {
+                Configuration.LowMpPercent = lowMpPercent;
+            }
 
             var truncate = Configuration.TruncateMp;
             if (ImGui.Checkbox("Truncate MP Value", ref truncate))
@@ -664,6 +669,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Text($"Defines the limit of MaxGP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxGP.\n\nDefault: {Defaults.MinimumGpLength}");
                 ImGui.End();
             }
+            var lowGpPercent = Configuration.LowGpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low GP", ref lowGpPercent, 0, 100))
+            {
+                Configuration.LowGpPercent = lowGpPercent;
+            }
 
             ImGui.Separator();
             ImGui.NewLine();
@@ -716,6 +726,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Begin("KHTT", ImGuiWindowFlags.Tooltip | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
                 ImGui.Text($"Defines the limit of MaxCP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxCP.\n\nDefault: {Defaults.MinimumCpLength}");
                 ImGui.End();
+            }
+            var lowCpPercent = Configuration.LowCpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low CP", ref lowCpPercent, 0, 100))
+            {
+                Configuration.LowCpPercent = lowCpPercent;
             }
 
             ImGui.EndTabItem();
