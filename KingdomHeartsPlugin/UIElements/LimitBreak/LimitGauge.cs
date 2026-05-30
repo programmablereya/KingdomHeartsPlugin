@@ -155,21 +155,40 @@ namespace KingdomHeartsPlugin.UIElements.LimitBreak
             return true;
         }
 
-        public unsafe void Draw()
+        public void Draw()
         {
             if (!UpdateLimitBreak()) return;
 
             var drawList = ImGui.GetWindowDrawList();
             var basePosition = new Vector2(KingdomHeartsPlugin.Ui.Configuration.LimitGaugePositionX, KingdomHeartsPlugin.Ui.Configuration.LimitGaugePositionY);
-
+            var scale = KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var origin = ImGui.GetItemRectMin() + basePosition;
+            
             // BG
             ImageDrawing.DrawImage(drawList, _gaugeBackgroundTexture, basePosition);
             // Numbers
             ImageDrawing.DrawImageQuad(drawList, _numbers(LimitBreakLevel), basePosition + new Vector2(167, 1), new Vector2(30, 0), new Vector2(30, 0), Vector2.Zero, Vector2.Zero,
                 ImGui.GetColorU32(new Vector4(1, 0.4f, 0, 1)));
             // Foreground
+            /*
             ImageDrawing.DrawImage(drawList, _gaugeForegroundTexture, basePosition + new Vector2(4, 4),
                 new Vector4(0, 0, LimitBreakLevel == LimitBreakMaxLevel ? 1 : LimitBreakBarWidth[LimitBreakLevel] / (float)MaxLimitBarWidth, 1));
+                */
+            var maxGauge = SpeedGauge
+                .Construct(56f, 12f, 62f, 25f, 28f, 45f)
+                .Transform(Transform.ScaleAndOffset(scale, (origin + new Vector2(6f, 45f))/ scale));
+            drawList.PushClipRect(maxGauge.BoundingBoxMin, maxGauge.BoundingBoxMax);
+            maxGauge
+                .Fill(drawList, Gradient2D.SingleColor(new Vector4(0.53f, 0.30f, 0.08f, 1.0f)));
+            var fraction = LimitBreakLevel == LimitBreakMaxLevel
+                ? 1
+                : (float) LimitBreakBarWidth[LimitBreakLevel] / MaxLimitBarWidth;
+            var currentGauge = maxGauge.Slice(endFraction: fraction);
+            var startColor = new Vector4(1.0f, 0.60f, 0f, 1.0f);
+            var endColor = new Vector4(1.0f, 0.95f, 0f, 1.0f);
+            currentGauge.Fill(
+                drawList, Gradient2D.TwoColorHorizontal(startColor, Vector4.Lerp(startColor, endColor, fraction)));
+            drawList.PopClipRect();
             // Text
             ImageDrawing.DrawImage(drawList, _limitTextTexture, basePosition + new Vector2(-60, 28), ImGui.GetColorU32(new Vector4(1, 0.75f, 0, 1)));
             // MAX icon
@@ -219,11 +238,7 @@ namespace KingdomHeartsPlugin.UIElements.LimitBreak
                 _orbs[i].Angle = -200 + -i * (360 / (Math.Max(LimitBreakLevel, 1)));
             }
         }
-
-        public void Dispose()
-        {
-        }
-
+        
         private int LimitBreakLevel { get; set; }
         private int LimitBreakMaxLevel { get; set; }
         private int[] LimitBreakBarWidth { get; }

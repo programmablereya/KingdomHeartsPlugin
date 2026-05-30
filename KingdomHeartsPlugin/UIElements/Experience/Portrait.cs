@@ -20,7 +20,7 @@ namespace KingdomHeartsPlugin.Configuration
         public const string PortraitCombatImage = "";
     }
 
-    public partial class Settings
+    public partial record Settings
     {
         public float PortraitX { get; set; } = Defaults.PortraitX;
         public float PortraitY { get; set; } = Defaults.PortraitY;

@@ -8,8 +8,8 @@ using KingdomHeartsPlugin.UIElements.HealthBar;
 using KingdomHeartsPlugin.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
-using System.Linq;
 using System.Numerics;
 using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Interface.Utility;
@@ -66,7 +66,6 @@ namespace KingdomHeartsPlugin
         {
             HealthFrame?.Dispose();
             Portrait.Dispose();
-            ImageDrawing.Dispose();
             //_testTextureWrap?.Dispose();
         }
 
@@ -423,10 +422,10 @@ namespace KingdomHeartsPlugin
             
             if (ImGui.BeginCombo("Text Formatting", Configuration.HpValueTextStyle.GetDescription()))
             {
-                var styles = (NumberFormatStyle[])Enum.GetValues(typeof(NumberFormatStyle));
+                var styles = Enum.GetValues<NumberFormatStyle>();
                 for (int i = 0; i < styles.Length; i++)
                 {
-                    if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatDigits(1234567, (NumberFormatStyle)i)}) ({StringFormatting.FormatDigits(54321, (NumberFormatStyle)i)})"))
+                    if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatIntegerAbbreviated(1234567, (NumberFormatStyle)i)}) ({StringFormatting.FormatIntegerAbbreviated(54321, (NumberFormatStyle)i)})"))
                     {
                         Configuration.HpValueTextStyle = (NumberFormatStyle)i;
                     }
@@ -532,10 +531,10 @@ namespace KingdomHeartsPlugin
 
             if (ImGui.BeginCombo("Text Formatting", Configuration.ResourceTextStyle.GetDescription()))
             {
-                var styles = (NumberFormatStyle[])Enum.GetValues(typeof(NumberFormatStyle));
+                var styles = Enum.GetValues<NumberFormatStyle>();
                 for (int i = 0; i < styles.Length; i++)
                 {
-                    if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatDigits(10000, (NumberFormatStyle)i)})"))
+                    if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatIntegerAbbreviated(10000, (NumberFormatStyle)i)})"))
                     {
                         Configuration.ResourceTextStyle = (NumberFormatStyle)i;
                     }
@@ -596,6 +595,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Begin("KHTT", ImGuiWindowFlags.Tooltip | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
                 ImGui.Text($"Defines the limit of MaxMP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxMP.\n\nDefault: {Defaults.MinimumMpLength}");
                 ImGui.End();
+            }
+            var lowMpPercent = Configuration.LowMpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low MP", ref lowMpPercent, 0, 100))
+            {
+                Configuration.LowMpPercent = lowMpPercent;
             }
 
             var truncate = Configuration.TruncateMp;
@@ -664,6 +668,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Text($"Defines the limit of MaxGP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxGP.\n\nDefault: {Defaults.MinimumGpLength}");
                 ImGui.End();
             }
+            var lowGpPercent = Configuration.LowGpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low GP", ref lowGpPercent, 0, 100))
+            {
+                Configuration.LowGpPercent = lowGpPercent;
+            }
 
             ImGui.Separator();
             ImGui.NewLine();
@@ -716,6 +725,11 @@ namespace KingdomHeartsPlugin
                 ImGui.Begin("KHTT", ImGuiWindowFlags.Tooltip | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoTitleBar);
                 ImGui.Text($"Defines the limit of MaxCP on how small the bar can get.\nSetting to 100 would prevent the bar from getting smaller lower than 100 MaxCP.\n\nDefault: {Defaults.MinimumCpLength}");
                 ImGui.End();
+            }
+            var lowCpPercent = Configuration.LowCpPercent;
+            if (ImGui.SliderFloat("Percent To Trigger Low CP", ref lowCpPercent, 0, 100))
+            {
+                Configuration.LowCpPercent = lowCpPercent;
             }
 
             ImGui.EndTabItem();
@@ -814,10 +828,10 @@ namespace KingdomHeartsPlugin
 
                 if (ImGui.BeginCombo("Formatting", Configuration.ExpValueTextFormatStyle.GetDescription()))
                 {
-                    var styles = (NumberFormatStyle[])Enum.GetValues(typeof(NumberFormatStyle));
+                    var styles = Enum.GetValues<NumberFormatStyle>();
                     for (int i = 0; i < styles.Length; i++)
                     {
-                        if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatDigits(12345, (NumberFormatStyle)i)}/{StringFormatting.FormatDigits(9999999, (NumberFormatStyle)i)})"))
+                        if (ImGui.Selectable($"{styles[i].GetDescription()} ({StringFormatting.FormatIntegerAbbreviated(12345, (NumberFormatStyle)i)}/{StringFormatting.FormatIntegerAbbreviated(9999999, (NumberFormatStyle)i)})"))
                         {
                             Configuration.ExpValueTextFormatStyle = (NumberFormatStyle)i;
                         }
@@ -1100,6 +1114,8 @@ namespace KingdomHeartsPlugin
             }
             ImGui.End();
         }
+        
+        private static readonly ImmutableArray<string> SupportedImages = [".png", ".jpg", ".jpeg", ".bmp"];
 
         /// <summary>
         /// Returns a message depending on if an image is found or not, and if it is not a supported format.
@@ -1114,12 +1130,16 @@ namespace KingdomHeartsPlugin
             var fileFound = File.Exists(path);
 
             if (!fileFound) return "File not found.";
+            
+            for (var index = 0; index < SupportedImages.Length; index++)
+            {
+                if (path.EndsWith(SupportedImages[index]))
+                {
+                    return "";
+                }
+            }
 
-            string[] supportedImages = { ".png", ".jpg", ".jpeg", ".bmp" };
-
-            var isImage = supportedImages.Any(ext => Path.GetExtension(path) == ext);
-
-            return isImage ? "" : "File is not an image. png, jpg, jpeg, bmp are supported.";
+            return "File is not an image. png, jpg, jpeg, bmp are supported.";
         }
         private FileDialogManager SetupDialogManager()
         {

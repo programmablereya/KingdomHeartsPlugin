@@ -1,14 +1,15 @@
 ﻿using System;
 using Dalamud.Configuration;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using KingdomHeartsPlugin.Enums;
 
 namespace KingdomHeartsPlugin.Configuration
 {
     [Serializable]
-    public partial class Settings : IPluginConfiguration
+    public partial record Settings : IPluginConfiguration
     {
-        public int Version { get; set; } = 0;
+        public int Version { get; set; } = Defaults.CurrentVersion;
 
         #region General
         public bool Locked { get; set; } = Defaults.Locked;
@@ -51,12 +52,15 @@ namespace KingdomHeartsPlugin.Configuration
         public int MaximumMpLength { get; set; } = Defaults.MaximumMpLength;
         public int MinimumMpLength { get; set; } = Defaults.MinimumMpLength;
         public float MpPerPixelLength { get; set; } = Defaults.MpPerPixelLength;
+        public float LowMpPercent { get; set; } = Defaults.LowMpPercent;
         public float GpPerPixelLength { get; set; } = Defaults.GpPerPixelLength;
         public int MaximumGpLength { get; set; } = Defaults.MaximumGpLength;
         public int MinimumGpLength { get; set; } = Defaults.MinimumGpLength;
+        public float LowGpPercent { get; set; } = Defaults.LowGpPercent;
         public float CpPerPixelLength { get; set; } = Defaults.CpPerPixelLength;
         public int MaximumCpLength { get; set; } = Defaults.MaximumCpLength;
         public int MinimumCpLength { get; set; } = Defaults.MinimumCpLength;
+        public float LowCpPercent { get; set; } = Defaults.LowCpPercent;
         public bool TruncateMp { get; set; } = Defaults.TruncateMp;
         public bool ShowResourceVal { get; set; } = Defaults.ShowResourceVal;
         #endregion
@@ -95,9 +99,15 @@ namespace KingdomHeartsPlugin.Configuration
         [NonSerialized]
         private IDalamudPluginInterface _pluginInterface = null!;
 
-        public void Initialize(IDalamudPluginInterface pluginInterface)
+        public void Initialize(IDalamudPluginInterface pluginInterface, IPluginLog logger)
         {
             this._pluginInterface = pluginInterface;
+            if (Version > Defaults.CurrentVersion)
+            {
+                logger.Error(
+                    "Config has a newer version ({Version}) than this plugin ({CurrentVersion}). Things may break!",
+                    Version, Defaults.CurrentVersion);
+            }
         }
 
         public void Save()

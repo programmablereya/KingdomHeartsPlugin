@@ -2,10 +2,9 @@
 using Dalamud.Bindings.ImGui;
 using KingdomHeartsPlugin.Utilities;
 using System;
-using System.IO;
+using System.Diagnostics;
 using System.Numerics;
 using KingdomHeartsPlugin.Enums;
-using Dalamud.Interface.Textures;
 using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace KingdomHeartsPlugin.Configuration
@@ -22,7 +21,7 @@ namespace KingdomHeartsPlugin.Configuration
         public const float ClassIconScale = 1.0f;
     }
 
-    public partial class Settings
+    public partial record Settings
     {
         public float LevelTextX { get; set; } = Defaults.LevelTextX;
         public float LevelTextY { get; set; } = Defaults.LevelTextY;
@@ -38,28 +37,22 @@ namespace KingdomHeartsPlugin.UIElements.Experience
 {
     public class ClassBar
     {
-        private ISharedImmediateTexture _expBarSegmentTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_segment.png"));
-        }
-        private ISharedImmediateTexture _expColorlessBarSegmentTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_colorless_segment.png"));
-        }
-        private ISharedImmediateTexture _expBarBaseTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_outline.png"));
-        }
-
         unsafe
         private AddonExp* _addonExp;
-
+        private readonly Stopwatch _sinceLastLog;
+        private const uint LogDebounceTimeMs = 10000;
+        
         public ClassBar()
         {
-            ExperienceRing = new Ring(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_segment.png"));
-            ExperienceRingRest = new Ring(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_segment.png"), alpha: 0.25f);
-            ExperienceRingGain = new Ring(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_colorless_segment.png"), 0.65f, 0.92f, 1.00f);
-            ExperienceRingBg = new Ring(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\Experience\ring_experience_colorless_segment.png"), 0.07843f, 0.07843f, 0.0745f);
+            _sinceLastLog = new Stopwatch();
+        }
+        
+        private bool CanLogNow()
+        {
+            if (_sinceLastLog is { IsRunning: true, ElapsedMilliseconds: < LogDebounceTimeMs }) return false;
+            
+            _sinceLastLog.Restart();
+            return true;
         }
 
         private unsafe void Update(IPlayerCharacter player)
@@ -143,22 +136,136 @@ namespace KingdomHeartsPlugin.UIElements.Experience
             Update(player);
             var drawList = ImGui.GetWindowDrawList();
 
-            int size = (int)Math.Ceiling(256 * KingdomHeartsPlugin.Ui.Configuration.Scale);
-            var drawPosition = ImGui.GetItemRectMin() + new Vector2(0, (int)(healthY * KingdomHeartsPlugin.Ui.Configuration.Scale));
-
+            var scale = KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var drawPosition = ImGui.GetItemRectMin() + new Vector2(0, healthY * scale);
             if (KingdomHeartsPlugin.Ui.Configuration.ExpBarEnabled)
             {
+                var ExpBarOuterRadius = 68f;
+                var ExpBarInnerRadius = 55f;
+                var ExpBarOuterRingThickness = 4.0f * scale;
+                var ExpBarOuterRingSize = new Vector2(ExpBarOuterRadius * 2 * scale + ExpBarOuterRingThickness);
+                var ExpBarInnerRingSize = new Vector2(ExpBarInnerRadius * 2 * scale);
+                var ExpBarCenter = drawPosition + new Vector2(128f * scale);
+                var maxRing = RingGauge.Empty;
+                try
+                {
+                    maxRing = RingGauge.Construct(
+                        drawList._CalcCircleAutoSegmentCount(ExpBarOuterRadius * scale),
+                        ExpBarOuterRadius,
+                        ExpBarInnerRadius,
+                        -Math.PI,
+                        Math.PI,
+                        0f
+                    ).Transform(Transform.ScaleAndOffset(scale, ExpBarCenter));
+                }
+                catch (Exception ex)
+                {
+                    if (CanLogNow())
+                    {
+                        KingdomHeartsPlugin.Pl.Error(ex, "While calculating maxRing");
+                    }
+                }
+                drawList.PushClipRect(
+                    maxRing.BoundingBoxMin - new Vector2(ExpBarOuterRingThickness / 2),
+                    maxRing.BoundingBoxMax + new Vector2(ExpBarOuterRingThickness / 2));
 
-                ExperienceRingBg?.Draw(drawList, 1, drawPosition, 4, KingdomHeartsPlugin.Ui.Configuration.Scale);
+                var ExpBarBackgroundFill =
+                    Gradient2D.SingleColor(new Vector4(0.07843f, 0.07843f, 0.0745f, 1.0f));
+                try
+                {
+                    maxRing.Fill(drawList, ExpBarBackgroundFill);
+                }
+                catch (Exception ex)
+                {
+                    if (CanLogNow())
+                    {
+                        KingdomHeartsPlugin.Pl.Error(ex, "While filling maxRing");
+                    }
+                }
 
-                ExperienceRingRest?.Draw(drawList, (Experience + RestedBonusExperience) / (float)MaxExperience, drawPosition, 4, KingdomHeartsPlugin.Ui.Configuration.Scale);
+                var ExpBarRestedBonusFill =
+                    Gradient2D.TwoColorVertical(
+                        new Vector4(1.0f, 0.56f, 0.0f, 0.25f),
+                        new Vector4(1.0f, 0.95f, 0.0f, 0.25f));
 
-                ExperienceRingGain?.Draw(drawList, Experience / (float)MaxExperience, drawPosition, 4, KingdomHeartsPlugin.Ui.Configuration.Scale);
+                if (RestedBonusExperience > 0)
+                {
+                    try
+                    {
+                        var restedRing = maxRing.Slice(
+                            startFraction: (float)Experience / MaxExperience,
+                            endFraction: Math.Min(1.0f, (float)(Experience + RestedBonusExperience) / MaxExperience));
+                        restedRing.Fill(drawList, ExpBarBackgroundFill);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (CanLogNow())
+                        {
+                            KingdomHeartsPlugin.Pl.Error(ex,
+                                "While rendering restedRing (Experience {Experience}, MaxExperience {MaxExperience}), RestedBonusExperience {RestedBonusExperience})",
+                                Experience, MaxExperience, RestedBonusExperience);
+                        }
+                    }
+                }
 
-                ExperienceRing?.Draw(drawList, ExpTemp / MaxExperience, drawPosition, 4, KingdomHeartsPlugin.Ui.Configuration.Scale);
+                var ExpGainFill = Gradient2D.SingleColor(new Vector4(0.65f, 0.92f, 1.00f, 1.0f));
+                if (ExpTemp < Experience)
+                {
+                    try
+                    {
+                        var gainRing = maxRing.Slice(
+                            startFraction: ExpTemp / MaxExperience,
+                            endFraction: (float)Experience / MaxExperience);
+                        gainRing.Fill(drawList, ExpGainFill);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (CanLogNow())
+                        {
+                            KingdomHeartsPlugin.Pl.Error(ex,
+                                "While rendering gainRing (ExpTemp {ExpTemp}, Experience {Experience}, MaxExperience {MaxExperience}))",
+                                ExpTemp, Experience, MaxExperience);
+                        }
+                    }
+                }
 
-                drawList.PushClipRect(drawPosition, drawPosition + new Vector2(size, size));
-                drawList.AddImage(_expBarBaseTexture.GetWrapOrEmpty().Handle, drawPosition, drawPosition + new Vector2(size, size));
+                var ExpCurrentFill = Gradient2D.TwoColorVertical(
+                    new Vector4(1.0f, 0.56f, 0.0f, 1.0f), 
+                    new Vector4(1.0f, 0.95f, 0.0f, 1.0f)); 
+                try
+                {
+                    if (ExpTemp > 0)
+                    {
+                        var currentRing = maxRing.Slice(
+                            startFraction: 0.0f,
+                            endFraction: ExpTemp / MaxExperience);
+                        currentRing.Fill(drawList, ExpCurrentFill);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    if (CanLogNow()) {
+                        KingdomHeartsPlugin.Pl.Error(ex, "While rendering currentRing (ExpTemp {ExpTemp}, MaxExperience {MaxExperience}))", ExpTemp, MaxExperience);
+                    }
+                }
+
+                try
+                {
+                    drawList.PushClipRect(ExpBarCenter - ExpBarOuterRingSize / 2, ExpBarCenter + ExpBarOuterRingSize / 2);
+                    drawList.AddCircle(ExpBarCenter, ExpBarOuterRadius, ImGui.GetColorU32(new Vector4(0.0f, 0.0f, 0.0f, 1.0f)), ExpBarOuterRingThickness);
+                    drawList.PopClipRect();
+                    
+                    drawList.PushClipRect(ExpBarCenter - ExpBarInnerRingSize / 2, ExpBarCenter + ExpBarInnerRingSize / 2);
+                    drawList.AddCircleFilled(ExpBarCenter, ExpBarInnerRadius, ImGui.GetColorU32(new Vector4(0.0f, 0.0f, 0.0f, 1.0f)));
+                    drawList.PopClipRect();
+                }
+                catch (Exception ex)
+                {
+                    if (CanLogNow())
+                    {
+                        KingdomHeartsPlugin.Pl.Error(ex, "While stroking maxRing");
+                    }
+                }
                 drawList.PopClipRect();
             }
 
@@ -169,7 +276,6 @@ namespace KingdomHeartsPlugin.UIElements.Experience
                 float iconSize = KingdomHeartsPlugin.Ui.Configuration.ClassIconScale;
 
                 if (KingdomHeartsPlugin.Ot.LocalPlayer is null) return;
-
                 
                 ImageDrawing.DrawIcon(drawList, (ushort)(62000 + KingdomHeartsPlugin.Ot.LocalPlayer.ClassJob.RowId),
                     new Vector2(iconSize, iconSize),
@@ -188,7 +294,7 @@ namespace KingdomHeartsPlugin.UIElements.Experience
 
             if (KingdomHeartsPlugin.Ui.Configuration.ExpValueTextEnabled)
                 ImGuiAdditions.TextShadowedDrawList(drawList, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextSize,
-                    $"{StringFormatting.FormatDigits(Experience, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextFormatStyle)} / {StringFormatting.FormatDigits(MaxExperience, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextFormatStyle)}",
+                    $"{StringFormatting.FormatIntegerAbbreviated(Experience, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextFormatStyle)} / {StringFormatting.FormatIntegerAbbreviated(MaxExperience, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextFormatStyle)}",
                     drawPosition + new Vector2(KingdomHeartsPlugin.Ui.Configuration.ExpValueTextPositionX, KingdomHeartsPlugin.Ui.Configuration.ExpValueTextPositionY),
                     new Vector4(255 / 255f, 255 / 255f, 255 / 255f, 1f),
                     new Vector4(0 / 255f, 0 / 255f, 0 / 255f, 0.25f),
@@ -198,15 +304,6 @@ namespace KingdomHeartsPlugin.UIElements.Experience
 
         public unsafe void Dispose()
         {
-            ExperienceRing?.Dispose();
-            ExperienceRingRest?.Dispose();
-            ExperienceRingGain?.Dispose();
-            ExperienceRingBg?.Dispose();
-
-            ExperienceRing = null;
-            ExperienceRingRest = null;
-            ExperienceRingGain = null;
-            ExperienceRingBg = null;
             _addonExp = null;
         }
 
@@ -219,9 +316,5 @@ namespace KingdomHeartsPlugin.UIElements.Experience
         private uint ExpBeforeGain { get; set; }
         private float ExpTemp { get; set; }
         private float ExpGainTime { get; set; }
-        private Ring? ExperienceRing { get; set; }
-        private Ring? ExperienceRingRest { get; set; }
-        private Ring? ExperienceRingGain { get; set; }
-        private Ring? ExperienceRingBg { get; set; }
     }
 }

@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.31624.102
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KingdomHeartsPlugin", "KingdomHeartsPlugin\KingdomHeartsPlugin.csproj", "{856039BE-9180-4133-86D2-A010899CA1E3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KingdomHeartsPlugin.Test", "KingdomHeartsPlugin.Test\KingdomHeartsPlugin.Test.csproj", "{5F12CD14-6466-4730-B9F7-33D29754E44F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +17,10 @@ Global
 		{856039BE-9180-4133-86D2-A010899CA1E3}.Release|x64.ActiveCfg = Release|x64
 		{856039BE-9180-4133-86D2-A010899CA1E3}.Release|x64.Build.0 = Release|x64
 		{856039BE-9180-4133-86D2-A010899CA1E3}.Debug|x64.Build.0 = Debug|x64
+		{5F12CD14-6466-4730-B9F7-33D29754E44F}.Debug|x64.ActiveCfg = Debug|x64
+		{5F12CD14-6466-4730-B9F7-33D29754E44F}.Debug|x64.Build.0 = Debug|x64
+		{5F12CD14-6466-4730-B9F7-33D29754E44F}.Release|x64.ActiveCfg = Release|x64
+		{5F12CD14-6466-4730-B9F7-33D29754E44F}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

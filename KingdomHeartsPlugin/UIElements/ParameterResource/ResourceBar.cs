@@ -1,8 +1,5 @@
-﻿using System;
-using System.IO;
-using System.Numerics;
+﻿using System.Numerics;
 using Dalamud.Game.ClientState.Objects.SubKinds;
-using Dalamud.Interface.Textures;
 using Dalamud.Bindings.ImGui;
 using KingdomHeartsPlugin.Enums;
 using KingdomHeartsPlugin.Utilities;
@@ -11,23 +8,6 @@ namespace KingdomHeartsPlugin.UIElements.ParameterResource
 {
     public class ResourceBar
     {
-        private ISharedImmediateTexture _barBackgroundTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\ResourceBar\background.png"));
-        }
-        private ISharedImmediateTexture _barForegroundTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\ResourceBar\foreground.png"));
-        }
-        private ISharedImmediateTexture _mpBaseTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\ResourceBar\MP_base.png"));
-        }
-        private ISharedImmediateTexture _barEdgeTexture
-        {
-            get => ImageDrawing.GetSharedTexture(Path.Combine(KingdomHeartsPlugin.TemplateLocation, @"Textures\ResourceBar\edge.png"));
-        }
-
         private enum Resource
         {
             Mp,
@@ -35,15 +15,12 @@ namespace KingdomHeartsPlugin.UIElements.ParameterResource
             Gp
         }
 
-        public ResourceBar()
-        {
-        }
-
         public void Update(IPlayerCharacter player)
         {
             var minLength = 1;
             var maxLength = 1;
             var lengthRate = 1f;
+            var lowPercent = 0f;
 
             if (player.MaxMp > 0)
             {
@@ -54,6 +31,7 @@ namespace KingdomHeartsPlugin.UIElements.ParameterResource
                 minLength = KingdomHeartsPlugin.Ui.Configuration.MinimumMpLength;
                 maxLength = KingdomHeartsPlugin.Ui.Configuration.MaximumMpLength;
                 lengthRate = KingdomHeartsPlugin.Ui.Configuration.MpPerPixelLength;
+                lowPercent = KingdomHeartsPlugin.Ui.Configuration.LowMpPercent;
             }
             else if (player.MaxCp > 0)
             {
@@ -64,6 +42,7 @@ namespace KingdomHeartsPlugin.UIElements.ParameterResource
                 minLength = KingdomHeartsPlugin.Ui.Configuration.MinimumCpLength;
                 maxLength = KingdomHeartsPlugin.Ui.Configuration.MaximumCpLength;
                 lengthRate = KingdomHeartsPlugin.Ui.Configuration.CpPerPixelLength;
+                lowPercent = KingdomHeartsPlugin.Ui.Configuration.LowCpPercent;
             }
             else if (player.MaxGp > 0)
             {
@@ -74,46 +53,207 @@ namespace KingdomHeartsPlugin.UIElements.ParameterResource
                 minLength = KingdomHeartsPlugin.Ui.Configuration.MinimumGpLength;
                 maxLength = KingdomHeartsPlugin.Ui.Configuration.MaximumGpLength;
                 lengthRate = KingdomHeartsPlugin.Ui.Configuration.GpPerPixelLength;
+                lowPercent = KingdomHeartsPlugin.Ui.Configuration.LowGpPercent;
             }
 
-            var lengthMultiplier = ResourceMax < minLength ? minLength / (float)ResourceMax : ResourceMax > maxLength ? (float)maxLength / ResourceMax : 1f;
-            MaxResourceLength = (int)Math.Ceiling(ResourceMax / lengthRate * lengthMultiplier);
-            ResourceLength = (int)Math.Ceiling(ResourceValue / lengthRate * lengthMultiplier);
+            MaxResourceLength =
+                (ResourceMax < minLength ? minLength : ResourceMax > maxLength ? maxLength : ResourceMax) / lengthRate;
+            ResourceLow = ResourceValue <= ResourceMax * lowPercent / 100.0f;
+            IsConscious = !player.IsDead;
         }
 
         public void Draw(IPlayerCharacter player)
         {
             Update(player);
             var drawList = ImGui.GetWindowDrawList();
-            var basePosition =  new Vector2(KingdomHeartsPlugin.Ui.Configuration.ResourceBarPositionX, KingdomHeartsPlugin.Ui.Configuration.ResourceBarPositionY);
-            var textPosition = new Vector2(KingdomHeartsPlugin.Ui.Configuration.ResourceTextPositionX, KingdomHeartsPlugin.Ui.Configuration.ResourceTextPositionY) * KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var basePosition = new Vector2(
+                KingdomHeartsPlugin.Ui.Configuration.ResourceBarPositionX,
+                KingdomHeartsPlugin.Ui.Configuration.ResourceBarPositionY);
+            var valueTextPosition = new Vector2(
+                                        KingdomHeartsPlugin.Ui.Configuration.ResourceTextPositionX,
+                                        KingdomHeartsPlugin.Ui.Configuration.ResourceTextPositionY)
+                                    * KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var scale = KingdomHeartsPlugin.Ui.Configuration.Scale;
+            var origin = ImGui.GetItemRectMin() + basePosition * scale;
 
-            // Base
-            ImageDrawing.DrawImage(drawList, _mpBaseTexture, new Vector2(basePosition.X - 1, basePosition.Y), new Vector4(0, 0, 74 / 80f, 1));
+            var foregroundFill = NormalForegroundFill;
+            var backgroundColor = NormalBackgroundColor;
+            var textFill = NormalTitleFill;
+            var textShadowFill = NormalTitleShadowFill;
+
+            if (ResourceLow)
+            {
+                FlashCycleTime = (FlashCycleTime + KingdomHeartsPlugin.UiSpeed) % FlashCycleDurationSec;
+                if (FlashCycleTime >= FlashCycleDurationSec * FlashDutyCycle || !IsConscious)
+                {
+                    // we are currently Off
+                    foregroundFill = FlashOffForegroundFill;
+                    backgroundColor = FlashOffBackgroundColor;
+                    textFill = FlashOffTitleFill;
+                    textShadowFill = FlashOffTitleShadowFill;
+                }
+                else
+                {
+                    // we are currently On
+                    foregroundFill = FlashOnForegroundFill;
+                    backgroundColor = FlashOnBackgroundColor;
+                    textFill = FlashOnTitleFill;
+                    textShadowFill = FlashOnTitleShadowFill;
+                }
+            }
+            else
+            {
+                FlashCycleTime = 0.0f;
+            }
+
+            // Frame
+            var barOuterStart = origin + new Vector2(0.65f - MaxResourceLength - 6.0f, 0.0f) * scale;
+            var barOuterEnd = origin + new Vector2(ResourceTitleWidth + 12.0f, 32.0f) * scale;
+            drawList.PushClipRect(barOuterStart, barOuterEnd);
+            drawList.AddRectFilled(
+                barOuterStart,
+                barOuterEnd,
+                FrameColor,
+                5.0f * scale,
+                ImDrawFlags.RoundCornersAll);
+            drawList.PopClipRect();
+
+            // Text
+            DrawResourceTitle(drawList, origin + new Vector2(3.0f, 4.0f) * scale, scale, textFill, textShadowFill);
 
             // BG
-            ImageDrawing.DrawImageScaled(drawList, _barBackgroundTexture, new Vector2(basePosition.X + 0.33f - MaxResourceLength, basePosition.Y), new Vector2(MaxResourceLength, 1f));
+            var barInnerStart = origin + new Vector2(0.33f - MaxResourceLength, 5.0f) * scale;
+            var barInnerEnd = origin + new Vector2(0.33f, 5.0f + 22.0f) * scale;
+            drawList.PushClipRect(barInnerStart, barInnerEnd);
+            drawList.AddRectFilled(barInnerStart, barInnerEnd, backgroundColor);
+            drawList.PopClipRect();
 
             // FG
-            ImageDrawing.DrawImageScaled(drawList, _barForegroundTexture, new Vector2(basePosition.X + 0.33f - ResourceLength, basePosition.Y + 5), new Vector2(ResourceLength, 1f));
-
-            // Edge
-            ImageDrawing.DrawImage(drawList, _barEdgeTexture, new Vector2(basePosition.X + 0.65f - MaxResourceLength - 6, basePosition.Y));
-            // Base Edge
-            ImageDrawing.DrawImageRotated(drawList, _barEdgeTexture, new Vector2(basePosition.X + 74, basePosition.Y + 16), new Vector2(_barEdgeTexture.GetWrapOrEmpty().Width, _barEdgeTexture.GetWrapOrEmpty().Height), (float)Math.PI);
+            if (ResourceValue > 0)
+            {
+                var barValueStart = barInnerStart +
+                                    new Vector2(
+                                        (barInnerEnd.X - barInnerStart.X) * (ResourceMax - ResourceValue) / ResourceMax,
+                                        0.0f) * scale;
+                drawList.PushClipRect(barValueStart, barInnerEnd);
+                drawList.AddRectFilledMultiColor(
+                    barValueStart,
+                    barInnerEnd,
+                    foregroundFill[Vector2.Zero],
+                    foregroundFill[Vector2.Zero],
+                    foregroundFill[Vector2.One],
+                    foregroundFill[Vector2.One]);
+                drawList.PopClipRect();
+            }
 
             if (KingdomHeartsPlugin.Ui.Configuration.ShowResourceVal)
-                ImGuiAdditions.TextShadowedDrawList(drawList, KingdomHeartsPlugin.Ui.Configuration.ResourceTextSize, $"{StringFormatting.FormatDigits(KingdomHeartsPlugin.Ui.Configuration.TruncateMp && ResourceType == Resource.Mp ? ResourceValue / 100 : ResourceValue, KingdomHeartsPlugin.Ui.Configuration.ResourceTextStyle)}", ImGui.GetItemRectMin() + basePosition * KingdomHeartsPlugin.Ui.Configuration.Scale + textPosition, new Vector4(255 / 255f, 255 / 255f, 255 / 255f, 1f), new Vector4(0 / 255f, 0 / 255f, 0 / 255f, 0.25f), 3, (TextAlignment)KingdomHeartsPlugin.Ui.Configuration.ResourceTextAlignment);
-         }
-
-        public void Dispose()
-        {
+                ImGuiAdditions.TextShadowedDrawList(drawList,
+                    KingdomHeartsPlugin.Ui.Configuration.ResourceTextSize,
+                    $"{StringFormatting.FormatIntegerAbbreviated(
+                        KingdomHeartsPlugin.Ui.Configuration.TruncateMp && ResourceType == Resource.Mp
+                            ? ResourceValue / MpTruncateMultiplier
+                            : ResourceValue,
+                        KingdomHeartsPlugin.Ui.Configuration.ResourceTextStyle)}",
+                    origin + valueTextPosition,
+                    ValueColor, ValueShadowColor, ValueShadowWidth,
+                    (TextAlignment)KingdomHeartsPlugin.Ui.Configuration.ResourceTextAlignment);
         }
+
+        public FlatMesh ResourceCharacterMesh => ResourceType switch
+        {
+            Resource.Mp => StylizedText.ResourceM,
+            Resource.Cp => StylizedText.ResourceC,
+            Resource.Gp => StylizedText.ResourceG,
+            _ => StylizedText.ResourceM
+        };
+
+        public float ResourceTitleWidth => ResourceCharacterMesh.Size.X + StylizedText.ResourceCharacterSpacing +
+                                           StylizedText.ResourceP.Size.X;
+
+        public void DrawResourceTitle(ImDrawListPtr drawList, Vector2 origin, float scale, Gradient2D fill, Gradient2D shadowFill)
+        {
+            var shadowOffset = new Vector2(2.0f) * scale;
+
+            var typeCharacterPosition = origin + shadowOffset * scale;
+            var pPosition = typeCharacterPosition
+                            + new Vector2(
+                                (ResourceCharacterMesh.Size.X + StylizedText.ResourceCharacterSpacing) * scale, 0.0f);
+            
+            ResourceCharacterMesh
+                .Transform(Transform.ScaleAndOffset(scale, typeCharacterPosition + shadowOffset))
+                .Fill(drawList, shadowFill);
+            StylizedText.ResourceP
+                .Transform(Transform.ScaleAndOffset(scale, pPosition + shadowOffset))
+                .Fill(drawList, shadowFill);
+            ResourceCharacterMesh
+                .Transform(Transform.ScaleAndOffset(scale, typeCharacterPosition))
+                .Fill(drawList, fill);
+            StylizedText.ResourceP
+                .Transform(Transform.ScaleAndOffset(scale, pPosition))
+                .Fill(drawList, fill);
+        }
+
+        #region Colors
+
+        private static readonly uint FrameColor = ImGui.GetColorU32(new Vector4(0.0f, 0.0f, 0.0f, 1.0f));
+        private static readonly Vector4 ValueColor = new Vector4(255 / 255f, 255 / 255f, 255 / 255f, 1f);
+        private static readonly Vector4 ValueShadowColor = new Vector4(0 / 255f, 0 / 255f, 0 / 255f, 0.25f);
+        private const byte ValueShadowWidth = 3;
+        private const uint MpTruncateMultiplier = 100;
+
+        private static readonly Gradient2D NormalForegroundFill =
+            Gradient2D.TwoColorVertical(
+                new Vector4(0.0f, 0.47f, 0.94f, 1.0f),
+                new Vector4(0.0f, 0.30f, 0.82f, 1.0f));
+
+        private static readonly uint NormalBackgroundColor = ImGui.GetColorU32(new Vector4(0.02f, 0.04f, 0.33f, 1.0f));
+        private static readonly Gradient2D NormalTitleFill =
+            Gradient2D.SingleColor(new Vector4(0.30f, 0.51f, 0.78f, 1.0f));
+        private static readonly Gradient2D NormalTitleShadowFill =
+            Gradient2D.SingleColor(new Vector4(0.18f, 0.30f, 0.48f, 1.0f));
+
+        private static readonly Gradient2D FlashOnForegroundFill =
+            Gradient2D.TwoColorVertical(
+                new Vector4(0.92f, 0.22f, 0.90f, 1.0f),
+                new Vector4(0.68f, 0.13f, 0.68f, 1.0f));
+
+        private static readonly uint FlashOnBackgroundColor = ImGui.GetColorU32(new Vector4(0.32f, 0.02f, 0.04f, 1.0f));
+        
+        private static readonly Gradient2D FlashOnTitleFill =
+            Gradient2D.SingleColor(new Vector4(0.95f, 0.69f, 0.73f, 1.0f));
+        
+        private static readonly Gradient2D FlashOnTitleShadowFill =
+            Gradient2D.SingleColor(new Vector4(0.38f, 0.18f, 0.20f, 1.0f));
+
+        private static readonly Gradient2D FlashOffForegroundFill =
+            Gradient2D.TwoColorVertical(
+                new Vector4(0.66f, 0.12f, 0.53f, 1.0f),
+                new Vector4(0.36f, 0.11f, 0.32f, 1.0f));
+
+        private static readonly uint FlashOffBackgroundColor =
+            ImGui.GetColorU32(new Vector4(0.35f, 0.01f, 0.08f, 1.0f));
+
+        private static readonly Gradient2D FlashOffTitleFill =
+            Gradient2D.SingleColor(new Vector4(0.75f, 0.36f, 0.42f, 1.0f));
+
+        private static readonly Gradient2D FlashOffTitleShadowFill =
+            Gradient2D.SingleColor(new Vector4(0.31f, 0.08f, 0.11f, 1.0f));
+
+        #endregion
+
+        #region Flash Timing
+
+        private bool ResourceLow { get; set; }
+        private bool IsConscious { get; set; }
+        private float FlashCycleTime { get; set; }
+        private const float FlashCycleDurationSec = 1.0f;
+        private const float FlashDutyCycle = 0.5f;
+
+        #endregion
 
         private uint ResourceValue { get; set; }
         private Resource ResourceType { get; set; }
         private uint ResourceMax { get; set; }
-        private float ResourceLength { get; set; }
         private float MaxResourceLength { get; set; }
     }
 }

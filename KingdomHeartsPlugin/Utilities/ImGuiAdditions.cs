@@ -6,6 +6,7 @@ namespace KingdomHeartsPlugin.Utilities
 {
     public static class ImGuiAdditions
     {
+        public const uint AlphaMask = 0xFF000000;
 
         public static void TextShadowed(string text, Vector4 foregroundColor, Vector4 shadowColor, byte shadowWidth = 1)
         {

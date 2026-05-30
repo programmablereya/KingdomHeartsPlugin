@@ -4,17 +4,20 @@ using Dalamud.Plugin;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Autofac;
+using DalaMock.Host.Hosting;
 using KingdomHeartsPlugin.Configuration;
 using KingdomHeartsPlugin.UIElements.Experience;
 using Lumina.Excel.Sheets;
 using Dalamud.Plugin.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace KingdomHeartsPlugin
 {
-    public sealed class KingdomHeartsPlugin : IDalamudPlugin
+    public sealed class KingdomHeartsPlugin : HostedPlugin
     {
-        public string Name => "Kingdom Hearts UI Plugin";
-
         private const string SettingsCommand = "/khpconfig";
         private const string ToggleCommand = "/khp";
 
@@ -30,7 +33,7 @@ namespace KingdomHeartsPlugin
             ITextureProvider textureProvider,
             IPluginLog pluginLog,
             IObjectTable objectTable
-            )
+            ) : base(pluginInterface)
         {
             Pi = pluginInterface;
             Fw = framework;
@@ -41,21 +44,30 @@ namespace KingdomHeartsPlugin
             Tp = textureProvider;
             Pl = pluginLog;
             Ot = objectTable;
+        }
 
+        public override HostedPluginOptions ConfigureOptions()
+        {
+            var options = new HostedPluginOptions
+            {
+                UseMediatorService = false
+            };
+            return options;
+        }
+
+        public override async Task StartingAsync(CancellationToken cancellationToken)
+        {
+            await base.StartingAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             Timer = Stopwatch.StartNew();
-
-            TemplateLocation = Path.GetDirectoryName(pluginInterface.AssemblyLocation.FullName!) ?? "";
+            TemplateLocation = Path.GetDirectoryName(Pi.AssemblyLocation.FullName!) ?? "";
 
             var configuration = Pi.GetPluginConfig() as Settings ?? new Settings();
-            configuration.Initialize(Pi);
+            configuration.Initialize(Pi, Pl);
 
             Ui = new PluginUI(configuration);
-
             Portrait.SetAllPortraits();
-
-            Fw.Update += OnUpdate;
-
-
+            cancellationToken.ThrowIfCancellationRequested();
             Cm.AddHandler(SettingsCommand, new CommandInfo(OnSettingsCommand)
             {
                 HelpMessage = "Opens configuration for Kingdom Hearts UI Bars."
@@ -65,17 +77,18 @@ namespace KingdomHeartsPlugin
             {
                 HelpMessage = "Toggles the KH UI."
             });
-
+            cancellationToken.ThrowIfCancellationRequested();
+            Fw.Update += OnUpdate;
             Pi.UiBuilder.Draw += DrawUi;
             Pi.UiBuilder.OpenMainUi += ToggleMainVisibility;
             Pi.UiBuilder.OpenConfigUi += DrawConfigUi;
             Cs.TerritoryChanged += OnTerritoryChange;
         }
 
-        public void Dispose()
+        public override async Task StoppingAsync()
         {
             Ui?.Dispose();
-
+            
             Cm.RemoveHandler(SettingsCommand);
             Cm.RemoveHandler(ToggleCommand);
 
@@ -87,6 +100,15 @@ namespace KingdomHeartsPlugin
             Cs.TerritoryChanged -= OnTerritoryChange;
 
             Timer = null;
+            await base.StoppingAsync();
+        }
+
+        public override void ConfigureContainer(ContainerBuilder containerBuilder)
+        {
+        }
+
+        public override void ConfigureServices(IServiceCollection serviceCollection)
+        {
         }
 
         private void OnUpdate(IFramework framework)
